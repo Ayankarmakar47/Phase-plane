@@ -1,5 +1,5 @@
 import numpy as np
-import matplotlib.pyplot as plt
+##import matplotlib.pyplot as plt
 import sympy as sp
 from sympy.parsing.sympy_parser import (
     parse_expr, 
@@ -77,42 +77,4 @@ if check_linear(func1, x, y) and check_linear(func2, x, y):
                     print("The spiral is stable")
 
 
-##################################################################
-################### PLOTTING THE PHASE PORTRAIT ##################
-##################################################################
 
-# 3. Set up the grid
-x1 = np.linspace(-2.0, 2.0, 20)
-x2 = np.linspace(-2.0, 2.0, 20)
-X1, X2 = np.meshgrid(x1, x2)
-
-# 4. Compute vector components numerically across the meshgrid
-U = f1_num(X1, X2)
-V = f2_num(X1, X2)
-
-'''
-# BUG FIX 5: Keep this uncommented to prevent plotting crashes on constant inputs
-U = np.broadcast_to(U, X1.shape).astype(float)
-V = np.broadcast_to(V, X2.shape).astype(float)
-'''
-# 5. Normalize arrows to prevent massive overlapping
-magnitude = np.hypot(U, V)
-magnitude[magnitude == 0] = 1.0  # Prevent division by zero
-U_norm = U / magnitude
-V_norm = V / magnitude
-
-# 6. Create the plot
-fig, ax = plt.subplots(figsize=(8, 7))
-
-ax.quiver(X1, X2, U_norm, V_norm, color='darkblue', 
-          scale=30, width=0.003, headwidth=3, headlength=5, pivot='mid')
-
-# 7. Apply formatting
-ax.set_title("Phase Portrait", fontsize=14)
-ax.set_xlabel("$x_1$", fontsize=12)
-ax.set_ylabel("$x_2$", fontsize=12)
-ax.set_xlim([-2.1, 2.1])
-ax.set_ylim([-2.1, 2.1])
-
-plt.grid(True, linestyle='--', alpha=0.5)
-plt.show()
