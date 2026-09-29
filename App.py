@@ -14,9 +14,9 @@ st.title("Phase Portrait Generator")
 # Define symbols
 x, y = sp.symbols("x y")
 
-# 2. Get user input via Web Text Boxes (with default examples)
-expression1 = st.text_input("Enter dx/dt (e.g. -y or x - y):", "-y")
-expression2 = st.text_input("Enter dy/dt (e.g. x or x + y):", "x")
+# 2. Get user input via Web Text Boxes
+expression1 = st.text_input("Enter dx/dt (e.g. -y, x - y, or sin(x)):", "-y")
+expression2 = st.text_input("Enter dy/dt (e.g. x, x + y, or cos(y)):", "x")
 
 # 3. Create a Web Button to trigger the calculation
 if st.button("Generate Phase Portrait"):
@@ -27,9 +27,20 @@ if st.button("Generate Phase Portrait"):
     try:
         func1 = parse_expr(expression1, transformations=transformations)
         func2 = parse_expr(expression2, transformations=transformations)
+        
+        # NEW ERROR HANDLING: Check if user typed 'sinx' instead of 'sin(x)'
+        valid_symbols = {x, y}
+        invalid_syms1 = func1.free_symbols - valid_symbols
+        invalid_syms2 = func2.free_symbols - valid_symbols
+        
+        if invalid_syms1 or invalid_syms2:
+            bad_syms = ", ".join([str(s) for s in invalid_syms1 | invalid_syms2])
+            st.error(f"Unrecognized variable detected: **{bad_syms}**. If you meant a mathematical function, you must use parentheses (e.g., type `sin(x)` instead of `sinx`).")
+            st.stop() # Stops the script from crashing NumPy
+            
     except Exception as e:
         st.error(f"Error parsing the equations. Please check your syntax. Details: {e}")
-        st.stop() # Stops execution if there's a typo
+        st.stop()
 
     # Convert SymPy expressions to NumPy functions
     f1_num = sp.lambdify((x, y), func1, modules='numpy')
@@ -48,12 +59,11 @@ if st.button("Generate Phase Portrait"):
     st.write(f"Is $dx/dt$ linear? **{is_f1_linear}**")  
     st.write(f"Is $dy/dt$ linear? **{is_f2_linear}**")  
 
-    # FINDING THE NATURE OF EQUILIBRIUM POINT
+    # FINDING THE NATURE OF EQUILIBRIUM POINT (Linear Systems Only)
     if is_f1_linear and is_f2_linear: 
         A, b = sp.linear_eq_to_matrix([func1, func2], [x, y])
 
         st.write("Matrix A (Coefficients):")
-        # Renders the matrix nicely formatted using LaTeX on the website
         st.latex(sp.latex(A)) 
 
         # CONVERT MATRIX A TO NUMPY ARRAY
@@ -79,7 +89,7 @@ if st.button("Generate Phase Portrait"):
                 else:
                     st.success("The spiral is stable")
 
-    # PLOTTING THE PHASE PORTRAIT
+    # PLOTTING THE PHASE PORTRAIT (Executes for both Linear and Non-Linear)
     x1 = np.linspace(-2.0, 2.0, 20)
     x2 = np.linspace(-2.0, 2.0, 20)
     X1, X2 = np.meshgrid(x1, x2)
@@ -87,7 +97,7 @@ if st.button("Generate Phase Portrait"):
     U = f1_num(X1, X2)
     V = f2_num(X1, X2)
 
-    # BUG FIX: Required in Streamlit to prevent plotting crashes on constant inputs
+    # Broadcast to prevent crashes if user enters a constant (e.g. dx/dt = 1)
     U = np.broadcast_to(U, X1.shape).astype(float)
     V = np.broadcast_to(V, X2.shape).astype(float)
 
@@ -102,11 +112,11 @@ if st.button("Generate Phase Portrait"):
               scale=30, width=0.003, headwidth=3, headlength=5, pivot='mid')
 
     ax.set_title("Phase Portrait", fontsize=14)
-    ax.set_xlabel("$x_1$", fontsize=12)
-    ax.set_ylabel("$x_2$", fontsize=12) 
+    ax.set_xlabel("$x$", fontsize=12)
+    ax.set_ylabel("$y$", fontsize=12) 
     ax.set_xlim([-2.1, 2.1])
     ax.set_ylim([-2.1, 2.1])
     ax.grid(True, linestyle='--', alpha=0.5)
 
-    # 4. Display the plot on the website instead of a local window
+    # 4. Display the plot on the website
     st.pyplot(fig)
