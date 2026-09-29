@@ -1,1 +1,4 @@
-matplotlibsympy
+streamlit
+numpy
+scipy
+matplotlib
