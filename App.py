@@ -2,7 +2,6 @@ import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
 import sympy as sp
-import io  # Required for downloading the plot
 from sympy.parsing.sympy_parser import (
     parse_expr, 
     standard_transformations, 
@@ -73,6 +72,7 @@ if st.button("Generate Phase Portrait"):
         st.latex(sp.latex(A)) 
 
         # CONVERT MATRIX A TO NUMPY ARRAY
+        # Use dtype=complex to prevent crashes on complex coefficients (e.g., x + iy)
         A_num = np.array(A, dtype=complex)
         ev = np.linalg.eigvals(A_num)
 
@@ -80,6 +80,7 @@ if st.button("Generate Phase Portrait"):
         real_part = ev[0].real
         imag_part = ev[0].imag
         
+        # Use np.isclose instead of == 0 to fix floating point math errors
         if np.isclose(imag_part, 0, atol=1e-8): 
             if ev[0].real > 0 and ev[1].real > 0:
                 st.success("The nature of the equilibrium point is a Source (Unstable)")
@@ -101,7 +102,7 @@ if st.button("Generate Phase Portrait"):
                     st.success("The spiral is stable")
 
 
-    # PLOTTING THE PHASE PORTRAIT
+    # PLOTTING THE PHASE PORTRAIT (Executes for both Linear and Non-Linear)
     x1 = np.linspace(-2.0, 2.0, 20)
     x2 = np.linspace(-2.0, 2.0, 20)
     X1, X2 = np.meshgrid(x1, x2)
@@ -110,19 +111,21 @@ if st.button("Generate Phase Portrait"):
     V = f2_num(X1, X2)
 
     # SAFELY HANDLE COMPLEX OUTPUTS
+    # Matplotlib quiver crashes on complex arrays. Extract real parts to plot safely.
     if np.iscomplexobj(U) or np.iscomplexobj(V):
         st.warning("Complex outputs detected in the vector field. Plotting the real parts only.")
         U = np.real(U)
         V = np.real(V)
 
     # Broadcast to prevent crashes if user enters a constant (e.g. dx/dt = 1)
+    # Using np.asarray to ensure strict float casting
     U = np.broadcast_to(U, X1.shape)
     V = np.broadcast_to(V, X2.shape)
     
     U = np.asarray(U, dtype=float)
     V = np.asarray(V, dtype=float)
 
-    # Replace NaNs with 0
+    # Replace NaNs (from domain errors like 1/x at x=0) with 0 to prevent quiver crashes
     U = np.nan_to_num(U)
     V = np.nan_to_num(V)
 
@@ -145,15 +148,3 @@ if st.button("Generate Phase Portrait"):
 
     # 4. Display the plot on the website
     st.pyplot(fig)
-
-    # 5. Add a Download Button for the Image
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=300, bbox_inches="tight")
-    buf.seek(0)
-    
-    st.download_button(
-        label="Download Plot as PNG",
-        data=buf,
-        file_name="phase_portrait.png",
-        mime="image/png"
-    )
