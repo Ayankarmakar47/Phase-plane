@@ -24,12 +24,17 @@ if st.button("Generate Phase Portrait"):
     # Parse input
     transformations = standard_transformations + (implicit_multiplication_application,)
     
+    # Map 'i', 'I', or 'j' to SymPy's imaginary unit to allow complex inputs natively
+    complex_mapping = {'i': sp.I, 'I': sp.I, 'j': sp.I}
+    
     try:
-        func1 = parse_expr(expression1, transformations=transformations)
-        func2 = parse_expr(expression2, transformations=transformations)
+        # Pass the local_dict mapping to parser
+        func1 = parse_expr(expression1, transformations=transformations, local_dict=complex_mapping)
+        func2 = parse_expr(expression2, transformations=transformations, local_dict=complex_mapping)
         
-        # NEW ERROR HANDLING: Check if user typed 'sinx' instead of 'sin(x)'
+        # ERROR HANDLING: Check if user typed 'sinx' instead of 'sin(x)'
         valid_symbols = {x, y}
+        # (sp.I is a constant, so it safely bypasses this check)
         invalid_syms1 = func1.free_symbols - valid_symbols
         invalid_syms2 = func2.free_symbols - valid_symbols
         
@@ -67,27 +72,35 @@ if st.button("Generate Phase Portrait"):
         st.latex(sp.latex(A)) 
 
         # CONVERT MATRIX A TO NUMPY ARRAY
-        A_num = np.array(A, dtype=float)
+        # Use dtype=complex to prevent crashes on complex coefficients (e.g., x + iy)
+        A_num = np.array(A, dtype=complex)
         ev = np.linalg.eigvals(A_num)
 
         # CLASSIFICATION OF FIXED POINTS
-        if ev[0].imag == 0:
+        real_part = ev[0].real
+        imag_part = ev[0].imag
+        
+        # Use np.isclose instead of == 0 to fix floating point math errors
+        if np.isclose(imag_part, 0, atol=1e-8): 
             if ev[0].real > 0 and ev[1].real > 0:
                 st.success("The nature of the equilibrium point is a Source (Unstable)")
             elif ev[0].real < 0 and ev[1].real < 0:
                 st.success("The nature of the equilibrium point is a Sink (Stable)")
             elif ev[0].real * ev[1].real < 0:
                 st.success("The equilibrium point is a Saddle point")
+            else:
+                st.info("The equilibrium point has a zero eigenvalue (Marginal/Degenerate).")
         
-        if ev[0].imag != 0:
-            if ev[0].real == 0:
+        else: # Imaginary part is not zero
+            if np.isclose(real_part, 0, atol=1e-8):
                 st.success("The Equilibrium point is a Centre")
-            elif ev[0].real != 0:
+            else:
                 st.success("The Equilibrium point is a Spiral")
-                if ev[0].real > 0:
+                if real_part > 0:
                     st.warning("The spiral is unstable")
                 else:
                     st.success("The spiral is stable")
+
 
     # PLOTTING THE PHASE PORTRAIT (Executes for both Linear and Non-Linear)
     x1 = np.linspace(-2.0, 2.0, 20)
@@ -97,9 +110,24 @@ if st.button("Generate Phase Portrait"):
     U = f1_num(X1, X2)
     V = f2_num(X1, X2)
 
+    # SAFELY HANDLE COMPLEX OUTPUTS
+    # Matplotlib quiver crashes on complex arrays. Extract real parts to plot safely.
+    if np.iscomplexobj(U) or np.iscomplexobj(V):
+        st.warning("Complex outputs detected in the vector field. Plotting the real parts only.")
+        U = np.real(U)
+        V = np.real(V)
+
     # Broadcast to prevent crashes if user enters a constant (e.g. dx/dt = 1)
-    U = np.broadcast_to(U, X1.shape).astype(float)
-    V = np.broadcast_to(V, X2.shape).astype(float)
+    # Using np.asarray to ensure strict float casting
+    U = np.broadcast_to(U, X1.shape)
+    V = np.broadcast_to(V, X2.shape)
+    
+    U = np.asarray(U, dtype=float)
+    V = np.asarray(V, dtype=float)
+
+    # Replace NaNs (from domain errors like 1/x at x=0) with 0 to prevent quiver crashes
+    U = np.nan_to_num(U)
+    V = np.nan_to_num(V)
 
     magnitude = np.hypot(U, V)
     magnitude[magnitude == 0] = 1.0  # Prevent division by zero
