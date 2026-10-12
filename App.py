@@ -7,144 +7,146 @@ from sympy.parsing.sympy_parser import (
     standard_transformations, 
     implicit_multiplication_application
 )
+from scipy.integrate import solve_ivp
 
-# 1. Set up the Web Page Title
-st.title("Phase Portrait Generator")
+# 1. Streamlit Page Configuration
+st.set_page_config(page_title="Phase Portrait Generator", layout="wide")
+st.title("2D Phase Portrait & Trajectory Generator")
 
-# Define symbols
+# 2. Sidebar for Inputs
+st.sidebar.header("System of Equations")
+expression1 = st.sidebar.text_input("Enter dx/dt (e.g. -y or x - y):", value="-y")
+expression2 = st.sidebar.text_input("Enter dy/dt (e.g. x or x + y):", value="x")
+
+st.sidebar.markdown("---")
+st.sidebar.header("Plot Trajectory")
+show_trajectory = st.sidebar.checkbox("Enable Trajectory Plotting", value=False)
+x0 = st.sidebar.number_input("Starting x coordinate", value=1.0, step=0.1)
+y0 = st.sidebar.number_input("Starting y coordinate", value=1.0, step=0.1)
+
+# 3. Define symbols and parse input
 x, y = sp.symbols("x y")
+transformations = standard_transformations + (implicit_multiplication_application,)
 
-# 2. Get user input via Web Text Boxes
-expression1 = st.text_input("Enter dx/dt (e.g. -y, x - y, or sin(x)):", "-y")
-expression2 = st.text_input("Enter dy/dt (e.g. x, x + y, or cos(y)):", "x")
+try:
+    func1 = parse_expr(expression1, transformations=transformations)
+    func2 = parse_expr(expression2, transformations=transformations)
+except Exception as e:
+    st.error(f"Error parsing equations. Please check your syntax. ({e})")
+    st.stop()
 
-# 3. Create a Web Button to trigger the calculation
-if st.button("Generate Phase Portrait"):
-    
-    # Parse input
-    transformations = standard_transformations + (implicit_multiplication_application,)
-    
-    # Map 'i', 'I', or 'j' to SymPy's imaginary unit to allow complex inputs natively
-    complex_mapping = {'i': sp.I, 'I': sp.I, 'j': sp.I}
-    
+# Convert SymPy expressions to NumPy functions
+f1_num = sp.lambdify((x, y), func1, modules='numpy')
+f2_num = sp.lambdify((x, y), func2, modules='numpy')
+
+def check_linear(expr, *vars):
     try:
-        # Pass the local_dict mapping to parser
-        func1 = parse_expr(expression1, transformations=transformations, local_dict=complex_mapping)
-        func2 = parse_expr(expression2, transformations=transformations, local_dict=complex_mapping)
-        
-        # ERROR HANDLING: Check if user typed 'sinx' instead of 'sin(x)'
-        valid_symbols = {x, y}
-        # (sp.I is a constant, so it safely bypasses this check)
-        invalid_syms1 = func1.free_symbols - valid_symbols
-        invalid_syms2 = func2.free_symbols - valid_symbols
-        
-        if invalid_syms1 or invalid_syms2:
-            bad_syms = ", ".join([str(s) for s in invalid_syms1 | invalid_syms2])
-            st.error(f"Unrecognized variable detected: **{bad_syms}**. If you meant a mathematical function, you must use parentheses (e.g., type `sin(x)` instead of `sinx`).")
-            st.stop() # Stops the script from crashing NumPy
-            
-    except Exception as e:
-        st.error(f"Error parsing the equations. Please check your syntax. Details: {e}")
-        st.stop()
+       return sp.Poly(expr, *vars).is_linear
+    except sp.PolynomialError:
+        return False
 
-    # Convert SymPy expressions to NumPy functions
-    f1_num = sp.lambdify((x, y), func1, modules='numpy')
-    f2_num = sp.lambdify((x, y), func2, modules='numpy')
+is_lin_1 = check_linear(func1, x, y)
+is_lin_2 = check_linear(func2, x, y)
 
-    # CHECK FOR LINEARITY
-    def check_linear(expr, *vars):
-        try:
-            return sp.Poly(expr, *vars).is_linear
-        except sp.PolynomialError:
-            return False
+# 4. Create Dashboard Layout (Two Columns)
+col1, col2 = st.columns([1, 2.5])
 
-    is_f1_linear = check_linear(func1, x, y)
-    is_f2_linear = check_linear(func2, x, y)
+with col1:
+    st.subheader("System Analysis")
+    st.write(f"**dx/dt is linear:** {is_lin_1}")
+    st.write(f"**dy/dt is linear:** {is_lin_2}")
 
-    st.write(f"Is $dx/dt$ linear? **{is_f1_linear}**")  
-    st.write(f"Is $dy/dt$ linear? **{is_f2_linear}**")  
-
-    # FINDING THE NATURE OF EQUILIBRIUM POINT (Linear Systems Only)
-    if is_f1_linear and is_f2_linear: 
+    # Equilibrium Point Classification
+    if is_lin_1 and is_lin_2: 
         A, b = sp.linear_eq_to_matrix([func1, func2], [x, y])
+        
+        st.markdown("**Matrix A (Coefficients):**")
+        # Render Matrix A nicely using LaTeX in Streamlit
+        st.latex(sp.latex(A))
 
-        st.write("Matrix A (Coefficients):")
-        st.latex(sp.latex(A)) 
-
-        # CONVERT MATRIX A TO NUMPY ARRAY
-        # Use dtype=complex to prevent crashes on complex coefficients (e.g., x + iy)
-        A_num = np.array(A, dtype=complex)
+        A_num = np.array(A, dtype=float)
         ev = np.linalg.eigvals(A_num)
-
-        # CLASSIFICATION OF FIXED POINTS
-        real_part = ev[0].real
-        imag_part = ev[0].imag
         
-        # Use np.isclose instead of == 0 to fix floating point math errors
-        if np.isclose(imag_part, 0, atol=1e-8): 
+        st.write(f"**Eigenvalues:** `{np.round(ev[0], 3)}`, `{np.round(ev[1], 3)}`")
+
+        # Classification Logic
+        classification = ""
+        if ev[0].imag == 0:
             if ev[0].real > 0 and ev[1].real > 0:
-                st.success("The nature of the equilibrium point is a Source (Unstable)")
+                classification = "Source (Unstable)"
             elif ev[0].real < 0 and ev[1].real < 0:
-                st.success("The nature of the equilibrium point is a Sink (Stable)")
+                classification = "Sink (Stable)"
             elif ev[0].real * ev[1].real < 0:
-                st.success("The equilibrium point is a Saddle point")
+                classification = "Saddle point"
+        else:
+            if ev[0].real == 0:
+                classification = "Center (Neutral)"
             else:
-                st.info("The equilibrium point has a zero eigenvalue (Marginal/Degenerate).")
-        
-        else: # Imaginary part is not zero
-            if np.isclose(real_part, 0, atol=1e-8):
-                st.success("The Equilibrium point is a Centre")
-            else:
-                st.success("The Equilibrium point is a Spiral")
-                if real_part > 0:
-                    st.warning("The spiral is unstable")
+                if ev[0].real > 0:
+                    classification = "Spiral (Unstable)"
                 else:
-                    st.success("The spiral is stable")
+                    classification = "Spiral (Stable)"
+        
+        st.success(f"**Equilibrium Nature:**\n{classification}")
 
-
-    # PLOTTING THE PHASE PORTRAIT (Executes for both Linear and Non-Linear)
+with col2:
+    st.subheader("Phase Portrait")
+    
+    # Set up the grid
     x1 = np.linspace(-2.0, 2.0, 20)
     x2 = np.linspace(-2.0, 2.0, 20)
     X1, X2 = np.meshgrid(x1, x2)
 
+    # Compute vector components
     U = f1_num(X1, X2)
     V = f2_num(X1, X2)
 
-    # SAFELY HANDLE COMPLEX OUTPUTS
-    # Matplotlib quiver crashes on complex arrays. Extract real parts to plot safely.
-    if np.iscomplexobj(U) or np.iscomplexobj(V):
-        st.warning("Complex outputs detected in the vector field. Plotting the real parts only.")
-        U = np.real(U)
-        V = np.real(V)
+    # Broadcast to prevent plotting crashes on constant inputs
+    U = np.broadcast_to(U, X1.shape).astype(float)
+    V = np.broadcast_to(V, X2.shape).astype(float)
 
-    # Broadcast to prevent crashes if user enters a constant (e.g. dx/dt = 1)
-    # Using np.asarray to ensure strict float casting
-    U = np.broadcast_to(U, X1.shape)
-    V = np.broadcast_to(V, X2.shape)
-    
-    U = np.asarray(U, dtype=float)
-    V = np.asarray(V, dtype=float)
-
-    # Replace NaNs (from domain errors like 1/x at x=0) with 0 to prevent quiver crashes
-    U = np.nan_to_num(U)
-    V = np.nan_to_num(V)
-
+    # Retained your normalization logic 
     magnitude = np.hypot(U, V)
-    magnitude[magnitude == 0] = 1.0  # Prevent division by zero
-    U_norm = U / magnitude
-    V_norm = V / magnitude
+    magnitude[magnitude == 0] = 1.0  
+    U_norm = U 
+    V_norm = V 
 
-    fig, ax = plt.subplots(figsize=(8, 7))
+    # Create the plot
+    fig, ax = plt.subplots(figsize=(8, 6))
 
     ax.quiver(X1, X2, U_norm, V_norm, color='darkblue', 
               scale=30, width=0.003, headwidth=3, headlength=5, pivot='mid')
 
-    ax.set_title("Phase Portrait", fontsize=14)
-    ax.set_xlabel("$x$", fontsize=12)
-    ax.set_ylabel("$y$", fontsize=12) 
+    ax.set_xlabel("$x_1$", fontsize=12)
+    ax.set_ylabel("$x_2$", fontsize=12)
     ax.set_xlim([-2.1, 2.1])
     ax.set_ylim([-2.1, 2.1])
-    ax.grid(True, linestyle='--', alpha=0.5)
+    plt.grid(True, linestyle='--', alpha=0.5)
 
-    # 4. Display the plot on the website
+    # --- TRAJECTORY PLOTTING LOGIC ---
+    if show_trajectory:
+        def ode_system(t, state):
+            curr_x, curr_y = state
+            dx = float(f1_num(curr_x, curr_y))
+            dy = float(f2_num(curr_x, curr_y))
+            return [dx, dy]
+            
+        t_eval_f = np.linspace(0, 25, 2000)
+        t_eval_b = np.linspace(0, -25, 2000)
+        
+        try:
+            sol_f = solve_ivp(ode_system, (0, 25), [x0, y0], t_eval=t_eval_f, method='RK45')
+            ax.plot(sol_f.y[0], sol_f.y[1], color='red', linewidth=2, label='Forward Time')
+            
+            sol_b = solve_ivp(ode_system, (0, -25), [x0, y0], t_eval=t_eval_b, method='RK45')
+            ax.plot(sol_b.y[0], sol_b.y[1], color='magenta', linewidth=2, label='Backward Time')
+            
+            # Plot the starting point
+            ax.plot(x0, y0, 'ko', markersize=6, label='Start Point')
+            ax.legend(loc='upper right')
+            
+        except Exception as e:
+            st.warning(f"Failed to calculate trajectory: {e}")
+
+    # Render plot in Streamlit
     st.pyplot(fig)
