@@ -148,31 +148,7 @@ with col2:
     ax.set_ylim([-2.1, 2.1])
     ax.set_zlim([-2.1, 2.1])
 
-    # --- TRAJECTORY PLOTTING LOGIC ---
-    if show_trajectory:
-        def ode_system(t, state):
-            curr_x, curr_y, curr_z = state
-            dx = float(f1_num(curr_x, curr_y, curr_z))
-            dy = float(f2_num(curr_x, curr_y, curr_z))
-            dz = float(f3_num(curr_x, curr_y, curr_z))
-            return [dx, dy, dz]
-            
-        t_eval_f = np.linspace(0, 15, 1000)
-        t_eval_b = np.linspace(0, -15, 1000)
-        
-        try:
-            sol_f = solve_ivp(ode_system, (0, 15), [x0, y0, z0], t_eval=t_eval_f, method='RK45')
-            ax.plot(sol_f.y[0], sol_f.y[1], sol_f.y[2], color='red', linewidth=2.5, label='Forward Time')
-            
-            sol_b = solve_ivp(ode_system, (0, -15), [x0, y0, z0], t_eval=t_eval_b, method='RK45')
-            ax.plot(sol_b.y[0], sol_b.y[1], sol_b.y[2], color='magenta', linewidth=2.5, label='Backward Time')
-            
-            # Plot the starting point
-            ax.scatter([x0], [y0], [z0], color='black', s=50, label='Start Point')
-            ax.legend(loc='upper left')
-            
-        except Exception as e:
-            st.warning(f"Failed to calculate trajectory: {e}")
+   
 
     # Render plot in Streamlit
     st.pyplot(fig)
