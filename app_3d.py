@@ -7,7 +7,6 @@ from sympy.parsing.sympy_parser import (
     standard_transformations, 
     implicit_multiplication_application
 )
-from scipy.integrate import solve_ivp
 
 # 1. Streamlit Page Configuration
 st.set_page_config(page_title="3D Phase Portrait Generator", layout="wide")
@@ -18,13 +17,6 @@ st.sidebar.header("System of Equations")
 expression1 = st.sidebar.text_input("Enter dx/dt (e.g. -x + y):", value="-x + y")
 expression2 = st.sidebar.text_input("Enter dy/dt (e.g. -y + z):", value="-y + z")
 expression3 = st.sidebar.text_input("Enter dz/dt (e.g. x - z):", value="x - z")
-
-st.sidebar.markdown("---")
-st.sidebar.header("Plot Trajectory")
-show_trajectory = st.sidebar.checkbox("Enable Trajectory Plotting", value=False)
-x0 = st.sidebar.number_input("Starting x coordinate", value=1.0, step=0.1)
-y0 = st.sidebar.number_input("Starting y coordinate", value=1.0, step=0.1)
-z0 = st.sidebar.number_input("Starting z coordinate", value=1.0, step=0.1)
 
 # 3. Define symbols and parse input
 x, y, z = sp.symbols("x y z")
@@ -109,7 +101,7 @@ with col1:
 with col2:
     st.subheader("3D Phase Portrait")
     
-    # Set up the 3D grid (Resolution kept low at 8x8x8 to prevent browser lag)
+    # Set up the 3D grid 
     grid_res = 8
     x1 = np.linspace(-2.0, 2.0, grid_res)
     x2 = np.linspace(-2.0, 2.0, grid_res)
@@ -129,16 +121,16 @@ with col2:
     # Normalize arrows
     magnitude = np.sqrt(U**2 + V**2 + W**2)
     magnitude[magnitude == 0] = 1.0  
-    U_norm = U / magnitude
-    V_norm = V / magnitude
-    W_norm = W / magnitude
+    U_norm = U 
+    V_norm = V 
+    W_norm = W 
 
     # Create the 3D plot
     fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111, projection='3d')
 
     ax.quiver(X1, X2, X3, U_norm, V_norm, W_norm, color='darkblue', 
-              length=0.4, normalize=False, alpha=0.3)
+              length=0.4, normalize=False, alpha=0.6)
 
     ax.set_xlabel("$x$", fontsize=12)
     ax.set_ylabel("$y$", fontsize=12)
@@ -147,8 +139,6 @@ with col2:
     ax.set_xlim([-2.1, 2.1])
     ax.set_ylim([-2.1, 2.1])
     ax.set_zlim([-2.1, 2.1])
-
-   
 
     # Render plot in Streamlit
     st.pyplot(fig)
