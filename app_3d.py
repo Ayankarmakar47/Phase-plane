@@ -142,3 +142,14 @@ with col2:
 
     # Render plot in Streamlit
     st.pyplot(fig)
+    # --- DOWNLOAD BUTTON LOGIC ---
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=300, bbox_inches="tight")
+    buf.seek(0)
+    
+    st.download_button(
+        label="📥 Download Plot as PNG",
+        data=buf,
+        file_name="2D_phase_portrait_custom_grid.png",
+        mime="image/png"
+    )
