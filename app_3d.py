@@ -2,6 +2,7 @@ import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
 import sympy as sp
+import io  # Added for image downloading
 from sympy.parsing.sympy_parser import (
     parse_expr, 
     standard_transformations, 
