@@ -2,6 +2,7 @@ import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
 import sympy as sp
+import io  # Added for image downloading
 from sympy.parsing.sympy_parser import (
     parse_expr, 
     standard_transformations, 
@@ -17,6 +18,13 @@ st.title("2D Phase Portrait & Trajectory Generator")
 st.sidebar.header("System of Equations")
 expression1 = st.sidebar.text_input("Enter dx/dt (e.g. -y or x - y):", value="-y")
 expression2 = st.sidebar.text_input("Enter dy/dt (e.g. x or x + y):", value="x")
+
+st.sidebar.markdown("---")
+st.sidebar.header("Grid Limits (a, b, c, d)")
+a = st.sidebar.number_input("x min (a)", value=-2.0, step=0.5)
+b = st.sidebar.number_input("x max (b)", value=2.0, step=0.5)
+c = st.sidebar.number_input("y min (c)", value=-2.0, step=0.5)
+d = st.sidebar.number_input("y max (d)", value=2.0, step=0.5)
 
 st.sidebar.markdown("---")
 st.sidebar.header("Plot Trajectory")
@@ -41,7 +49,7 @@ f2_num = sp.lambdify((x, y), func2, modules='numpy')
 
 def check_linear(expr, *vars):
     try:
-       return sp.Poly(expr, *vars).is_linear
+        return sp.Poly(expr, *vars).is_linear
     except sp.PolynomialError:
         return False
 
@@ -58,7 +66,7 @@ with col1:
 
     # Equilibrium Point Classification
     if is_lin_1 and is_lin_2: 
-        A, b = sp.linear_eq_to_matrix([func1, func2], [x, y])
+        A, b_vec = sp.linear_eq_to_matrix([func1, func2], [x, y])
         
         st.markdown("**Matrix A (Coefficients):**")
         # Render Matrix A nicely using LaTeX in Streamlit
@@ -91,10 +99,10 @@ with col1:
 
 with col2:
     st.subheader("Phase Portrait")
-    
-    # Set up the grid
-    x1 = np.linspace(-2.0, 2.0, 20)
-    x2 = np.linspace(-2.0, 2.0, 20)
+
+    # Set up the grid using user inputs (a, b, c, d)
+    x1 = np.linspace(a, b, 20)
+    x2 = np.linspace(c, d, 20)
     X1, X2 = np.meshgrid(x1, x2)
 
     # Compute vector components
@@ -105,11 +113,11 @@ with col2:
     U = np.broadcast_to(U, X1.shape).astype(float)
     V = np.broadcast_to(V, X2.shape).astype(float)
 
-    # Retained your normalization logic 
+    # Calculate magnitude and normalize vectors for better visualization
     magnitude = np.hypot(U, V)
     magnitude[magnitude == 0] = 1.0  
-    U_norm = U 
-    V_norm = V 
+    U_norm = U / magnitude 
+    V_norm = V / magnitude 
 
     # Create the plot
     fig, ax = plt.subplots(figsize=(8, 6))
@@ -119,8 +127,10 @@ with col2:
 
     ax.set_xlabel("$x_1$", fontsize=12)
     ax.set_ylabel("$x_2$", fontsize=12)
-    ax.set_xlim([-2.1, 2.1])
-    ax.set_ylim([-2.1, 2.1])
+    
+    # Update plot limits dynamically based on the grid bounds
+    ax.set_xlim([a - 0.1, b + 0.1])
+    ax.set_ylim([c - 0.1, d + 0.1])
     plt.grid(True, linestyle='--', alpha=0.5)
 
     # --- TRAJECTORY PLOTTING LOGIC ---
@@ -150,3 +160,15 @@ with col2:
 
     # Render plot in Streamlit
     st.pyplot(fig)
+
+    # --- DOWNLOAD BUTTON LOGIC ---
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=300, bbox_inches="tight")
+    buf.seek(0)
+    
+    st.download_button(
+        label="📥 Download Plot as PNG",
+        data=buf,
+        file_name="2D_phase_portrait_custom_grid.png",
+        mime="image/png"
+    )
