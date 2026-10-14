@@ -73,7 +73,8 @@ with col1:
         st.latex(sp.latex(A))
 
         A_num = np.array(A, dtype=float)
-        ev = np.linalg.eigvals(A_num)
+        # CHANGED: Get both eigenvalues and eigenvectors
+        ev, evec = np.linalg.eig(A_num)
         
         st.write(f"**Eigenvalues:** `{np.round(ev[0], 3)}`, `{np.round(ev[1], 3)}`")
 
@@ -133,6 +134,27 @@ with col2:
     ax.set_ylim([c - 0.1, d + 0.1])
     plt.grid(True, linestyle='--', alpha=0.5)
 
+    # --- EIGENVECTOR PLOTTING LOGIC ---
+    if is_lin_1 and is_lin_2:
+        # Calculate Equilibrium point to originate the eigenvectors
+        b_num = np.array(b_vec, dtype=float).flatten()
+        try:
+            eq_point = np.linalg.solve(A_num, b_num)
+        except np.linalg.LinAlgError:
+            eq_point = np.array([0.0, 0.0]) # Fallback if matrix is singular
+        
+        # Plot only real eigenvectors (complex ones don't form lines in R2)
+        for i in range(2):
+            if np.isreal(ev[i]):
+                v = np.real(evec[:, i])
+                # Ensure the eigenvector isn't a zero vector
+                if not (v[0] == 0 and v[1] == 0):
+                    ax.axline((eq_point[0], eq_point[1]), 
+                              (eq_point[0] + v[0], eq_point[1] + v[1]), 
+                              color='orange', linestyle='--', linewidth=2, 
+                              label=f'Eigenvector $\lambda={ev[i].real:.1f}$')
+
+
     # --- TRAJECTORY PLOTTING LOGIC ---
     if show_trajectory:
         def ode_system(t, state):
@@ -153,10 +175,14 @@ with col2:
             
             # Plot the starting point
             ax.plot(x0, y0, 'ko', markersize=6, label='Start Point')
-            ax.legend(loc='upper right')
             
         except Exception as e:
             st.warning(f"Failed to calculate trajectory: {e}")
+
+    # Add legend if there are any trajectories or eigenvectors plotted
+    handles, labels = ax.get_legend_handles_labels()
+    if handles:
+        ax.legend(loc='upper right')
 
     # Render plot in Streamlit
     st.pyplot(fig)
