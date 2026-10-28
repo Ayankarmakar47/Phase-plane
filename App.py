@@ -582,3 +582,155 @@ with col2:
     )
 
     plt.close(fig)
+
+
+# =========================================================
+# 8. MULTIPLE TRAJECTORIES AROUND ALL FIXED POINTS
+# =========================================================
+
+if show_trajectory:
+
+    def ode_system(t, state):
+        return vector_field(state[0], state[1])
+
+    # Store all initial conditions
+    initial_conditions = []
+
+    # Generate multiple initial conditions around each equilibrium
+    for i, eq in enumerate(fixed_points):
+
+        angles = np.linspace(
+            0,
+            2 * np.pi,
+            trajectories_per_equilibrium,
+            endpoint=False
+        )
+
+        for angle in angles:
+            dx = perturbation * np.cos(angle)
+            dy = perturbation * np.sin(angle)
+
+            initial_conditions.append({
+                "point": np.array(eq) + np.array([dx, dy]),
+                "equilibrium": i,
+                "label": f"Near E{i + 1}"
+            })
+
+    # Add the user-defined initial condition, if requested
+    if plot_user_trajectory:
+        initial_conditions.append({
+            "point": np.array([x0, y0], dtype=float),
+            "equilibrium": None,
+            "label": "User initial condition"
+        })
+
+    t_forward = np.linspace(0, trajectory_time, 1500)
+    t_backward = np.linspace(0, -trajectory_time, 1500)
+
+    successful_trajectories = 0
+
+    for j, item in enumerate(initial_conditions):
+
+        start = item["point"]
+        eq_index = item["equilibrium"]
+
+        # Use the same color for trajectories around the same equilibrium
+        if eq_index is not None:
+            color = f"C{eq_index % 10}"
+            label = (
+                f"Trajectories near E{eq_index + 1}"
+                if j == next(
+                    k for k, entry in enumerate(initial_conditions)
+                    if entry["equilibrium"] == eq_index
+                )
+                else None
+            )
+        else:
+            color = "black"
+            label = "User initial condition trajectory"
+
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+
+                sol_forward = solve_ivp(
+                    ode_system,
+                    (0, trajectory_time),
+                    start,
+                    t_eval=t_forward,
+                    method="RK45",
+                    rtol=1e-7,
+                    atol=1e-9
+                )
+
+                sol_backward = solve_ivp(
+                    ode_system,
+                    (0, -trajectory_time),
+                    start,
+                    t_eval=t_backward,
+                    method="RK45",
+                    rtol=1e-7,
+                    atol=1e-9
+                )
+
+            plotted = False
+
+            if sol_forward.y.shape[1] > 0:
+                ax.plot(
+                    sol_forward.y[0],
+                    sol_forward.y[1],
+                    color=color,
+                    linewidth=1.3,
+                    alpha=0.8,
+                    label=label
+                )
+                plotted = True
+
+            if sol_backward.y.shape[1] > 0:
+                ax.plot(
+                    sol_backward.y[0],
+                    sol_backward.y[1],
+                    color=color,
+                    linewidth=1.3,
+                    alpha=0.8,
+                    linestyle="--",
+                    label=None
+                )
+                plotted = True
+
+            if plotted:
+                successful_trajectories += 1
+
+            # Mark each perturbed initial point
+            ax.plot(
+                start[0],
+                start[1],
+                ".",
+                color=color,
+                markersize=4
+            )
+
+        except Exception:
+            continue
+
+    # Mark the original user-selected point
+    if plot_user_trajectory:
+        ax.plot(
+            x0, y0,
+            marker="*",
+            color="black",
+            markersize=12,
+            label="User starting point"
+        )
+
+    st.write(
+        f"Generated {len(initial_conditions)} initial conditions; "
+        f"{successful_trajectories} produced plotted trajectories."
+    )
+
+    st.caption(
+        "Solid lines represent forward time; dashed lines represent "
+        "backward time. Colors distinguish the equilibria. "
+        "Trajectories may overlap or leave the visible plotting region."
+    )
+
