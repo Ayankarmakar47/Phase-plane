@@ -116,8 +116,8 @@ with col2:
     # Calculate magnitude and normalize vectors for better visualization
     magnitude = np.hypot(U, V)
     magnitude[magnitude == 0] = 1.0  
-    U_norm = U / magnitude 
-    V_norm = V / magnitude 
+    U_norm = U 
+    V_norm = V 
 
     # Create the plot
     fig, ax = plt.subplots(figsize=(8, 6))
